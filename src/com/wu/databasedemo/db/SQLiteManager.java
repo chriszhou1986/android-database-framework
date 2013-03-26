@@ -6,25 +6,32 @@ import java.util.Map;
 
 import android.content.Context;
 
+import com.wu.databasedemo.db.data.FieldData;
 import com.wu.databasedemo.db.data.TableData;
+import com.wu.databasedemo.db.exception.NaturalKeyRepetitiveException;
+import com.wu.databasedemo.db.exception.NoNaturalKeyException;
+import com.wu.databasedemo.db.helper.ForeignKey;
 import com.wu.databasedemo.db.helper.NatrualKey;
 import com.wu.databasedemo.db.helper.NotPersistent;
 import com.wu.databasedemo.db.helper.Table;
+import com.wu.databasedemo.entity.Address;
 import com.wu.databasedemo.entity.Person;
 
 public class SQLiteManager {
 
-	public static final int DATABASE_VERSION = 1;
+	public static final int DATABASE_VERSION = 4;
 
 	public static final String DATABASE_NAME = "test.db";
 
 	public static final String PRIMARY_KEY = "_ID";
+	
+	private static final String SERIAL_VERSION_UID = "serialVersionUID";
 
 	public static SQLiteManager mManager;
 
 	static Map<Class<?>, TableData> mEntityDBTables;
 
-	static final Class<?>[] ENTITY_PERSISTENT = new Class<?>[] { Person.class };
+	static final Class<?>[] ENTITY_PERSISTENT = new Class<?>[] { Person.class, Address.class };
 
 	private SQLiteManager() {
 		super();
@@ -51,30 +58,60 @@ public class SQLiteManager {
 			if (isTable && fields.length > 0) {
 				Table table = cl.getAnnotation(Table.class);
 				String tableName = table.TableName();
+				// TODO if tableName is empty throws exceptions
 				if (tableName != null && tableName.length() > 0) {
 					TableData data = new TableData();
-					Map<String, Field> columns = new HashMap<String, Field>();
-					String natrualKey = null;
+					FieldData naturalKey = null;
+					boolean foundNaturalKey = false;
 					for (int j = 0; j < fields.length; j++) {
 						Field field = fields[j];
-						boolean notPersistent = field
+						if (isSerialVersion(field)) {
+							continue;
+						}
+						boolean isNotPersistent = field
 								.isAnnotationPresent(NotPersistent.class);
+						boolean isForeignKey = field
+								.isAnnotationPresent(ForeignKey.class);
+						boolean notPersistent = isNotPersistent || isForeignKey;
+
+						// process foreign-key attributes
+						if (isForeignKey) {
+							data.addForeignField(getForeignFromField(field),
+									field);
+						}
+
+						// process persistent attributes
 						if (!notPersistent) {
 							boolean isNatrualKey = field
 									.isAnnotationPresent(NatrualKey.class);
 							if (isNatrualKey) {
-								natrualKey = getColumnFromField(field);
+								if (foundNaturalKey) {
+									throw new NaturalKeyRepetitiveException(
+											"The persistent Class should be just have one natural-key.");
+								}
+								foundNaturalKey = true;
+								naturalKey = new FieldData();
+								naturalKey.column = getColumnFromField(field);
+								naturalKey.field = field;
 							}
-							columns.put(getColumnFromField(field), field);
+							data.addColumnField(getColumnFromField(field),
+									field);
 						}
 					}
+					if (naturalKey == null) {
+						throw new NoNaturalKeyException(
+								"The persistent Class must have one natural-key.");
+					}
+					data.setNaturalKey(naturalKey);
 					data.setTableName(tableName);
-					data.setNatrualKey(natrualKey);
-					data.setColumnFields(columns);
 					mEntityDBTables.put(cl, data);
 				}
 			}
 		}
+	}
+
+	private static boolean isSerialVersion(Field field) {
+		return SERIAL_VERSION_UID.equals(field.getName());
 	}
 
 	public static void beginTransaction(Context context) {
@@ -97,6 +134,13 @@ public class SQLiteManager {
 	public static String getColumnFromField(String fieldName) {
 		if (fieldName != null) {
 			return fieldName.toUpperCase();
+		}
+		return "";
+	}
+
+	public static String getForeignFromField(Field field) {
+		if (field != null) {
+			return field.getName().toUpperCase() + "_FK";
 		}
 		return "";
 	}

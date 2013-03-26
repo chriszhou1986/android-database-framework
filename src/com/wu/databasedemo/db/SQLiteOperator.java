@@ -17,7 +17,9 @@ import android.database.sqlite.SQLiteOpenHelper;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.wu.databasedemo.db.data.FieldData;
 import com.wu.databasedemo.db.data.TableData;
+import com.wu.databasedemo.db.helper.ForeignKey;
 
 public class SQLiteOperator extends SQLiteOpenHelper implements
 		ISQLiteOpenHelper {
@@ -57,8 +59,9 @@ public class SQLiteOperator extends SQLiteOpenHelper implements
 			Class<?> cl = SQLiteManager.ENTITY_PERSISTENT[i];
 			TableData tableData = SQLiteManager.mEntityDBTables.get(cl);
 			String tableName = tableData.getTableName();
-			Set<String> columns = tableData.getColumnFields().keySet();
-			if (columns == null || columns.size() == 0) {
+			List<FieldData> columns = tableData.getColumnFields();
+			List<FieldData> foreigns = tableData.getForeignFields();
+			if (Utility.size(columns) == 0 && Utility.size(foreigns) == 0) {
 				continue;
 			}
 
@@ -68,10 +71,17 @@ public class SQLiteOperator extends SQLiteOpenHelper implements
 			sql.append(SQLiteManager.PRIMARY_KEY
 					+ " INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT");
 
-			Iterator<String> it = columns.iterator();
-			while (it.hasNext()) {
-				sql.append(", " + it.next() + " TEXT");
+			int size = 0;
+			size = Utility.size(columns);
+			for (int j = 0; j < size; j++) {
+				sql.append(", " + columns.get(j).column + " TEXT");
 			}
+
+			size = Utility.size(foreigns);
+			for (int j = 0; j < size; j++) {
+				sql.append(", " + foreigns.get(j).column + " TEXT");
+			}
+
 			sql.append(")");
 			Log.i(TAG, "build table sql: " + sql);
 			try {
@@ -96,7 +106,9 @@ public class SQLiteOperator extends SQLiteOpenHelper implements
 		Iterator<TableData> it = tables.iterator();
 		while (it.hasNext()) {
 			TableData data = it.next();
-			db.execSQL("DROP TABLE IF EXISTS " + data.getTableName());
+			String sql = "DROP TABLE IF EXISTS " + data.getTableName();
+			db.execSQL(sql);
+			Log.i(TAG, "exec DROP SQL: " + sql);
 		}
 	}
 
@@ -118,8 +130,18 @@ public class SQLiteOperator extends SQLiteOpenHelper implements
 
 		try {
 			SQLiteDatabase db = getWritableDatabase();
+
+			db.beginTransaction();
+			List<FieldData> foreigns = tableData.getForeignFields();
+			int size = foreigns.size();
+			for (int i = 0; i < size; i++) {
+				FieldData fieldData = foreigns.get(i);
+				save(getFieldValue(object, fieldData.field));
+			}
 			long row = db.insert(tableName, null,
 					generateContentValues(tableData, object));
+			db.endTransaction();
+
 			return row == -1 ? false : true;
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -155,14 +177,12 @@ public class SQLiteOperator extends SQLiteOpenHelper implements
 		SQLiteManager.getInstance();
 		TableData tableData = SQLiteManager.mEntityDBTables.get(type);
 		String tableName = tableData.getTableName();
-		String natrualKey = tableData.getNatrualKey();
-		if (natrualKey == null || natrualKey.length() == 0) {
-			natrualKey = SQLiteManager.PRIMARY_KEY;
-		}
+
+		FieldData naturalKey = tableData.getNaturalKey();
 
 		try {
 			SQLiteDatabase db = getWritableDatabase();
-			int row = db.delete(tableName, natrualKey + "=?",
+			int row = db.delete(tableName, naturalKey.column + "=?",
 					new String[] { id });
 			return row == 0 ? false : true;
 		} catch (Exception e) {
@@ -221,16 +241,14 @@ public class SQLiteOperator extends SQLiteOpenHelper implements
 		TableData tableData = SQLiteManager.mEntityDBTables.get(object
 				.getClass());
 		String tableName = tableData.getTableName();
-		String natrualKey = tableData.getNatrualKey();
-		if (natrualKey == null || natrualKey.length() == 0) {
-			natrualKey = SQLiteManager.PRIMARY_KEY;
-		}
+
+		FieldData naturalKey = tableData.getNaturalKey();
 
 		try {
 			SQLiteDatabase db = getWritableDatabase();
 			int row = db.update(tableName,
-					generateContentValues(tableData, object),
-					natrualKey + "=?", new String[] { id });
+					generateContentValues(tableData, object), naturalKey.column
+							+ "=?", new String[] { id });
 			return row == 0 ? false : true;
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -289,18 +307,16 @@ public class SQLiteOperator extends SQLiteOpenHelper implements
 		}
 		SQLiteManager.getInstance();
 		TableData tableData = SQLiteManager.mEntityDBTables.get(type);
-		Set<String> columns = tableData.getColumnFields().keySet();
+		List<FieldData> columns = tableData.getColumnFields();
 		String tableName = tableData.getTableName();
-		String natrualKey = tableData.getNatrualKey();
-		if (TextUtils.isEmpty(natrualKey)) {
-			natrualKey = SQLiteManager.PRIMARY_KEY;
-		}
+
+		FieldData naturalKey = tableData.getNaturalKey();
 
 		Cursor cursor = null;
 		try {
 			SQLiteDatabase db = getWritableDatabase();
-			cursor = db.query(tableName, columns.toArray(new String[] {}),
-					natrualKey + "=?", new String[] { id }, null, null, null);
+			cursor = db.query(tableName, null, naturalKey.column + "=?",
+					new String[] { id }, null, null, null);
 			List<T> objects = generateEntityFromCursor(type, tableData, cursor);
 			if (objects != null && objects.size() > 0) {
 				return objects.get(0);
@@ -321,7 +337,7 @@ public class SQLiteOperator extends SQLiteOpenHelper implements
 			String[] selectionArgs) {
 		SQLiteManager.getInstance();
 		TableData tableData = SQLiteManager.mEntityDBTables.get(type);
-		Set<String> columns = tableData.getColumnFields().keySet();
+		List<FieldData> columns = tableData.getColumnFields();
 		String tableName = tableData.getTableName();
 
 		String selCondition = null;
@@ -344,8 +360,8 @@ public class SQLiteOperator extends SQLiteOpenHelper implements
 		Cursor cursor = null;
 		try {
 			SQLiteDatabase db = getWritableDatabase();
-			cursor = db.query(tableName, columns.toArray(new String[] {}),
-					selCondition, selValues, null, null, null);
+			cursor = db.query(tableName, null, selCondition, selValues, null,
+					null, null);
 			return generateEntityFromCursor(type, tableData, cursor);
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -358,19 +374,19 @@ public class SQLiteOperator extends SQLiteOpenHelper implements
 		return new ArrayList<T>();
 	}
 
-	private <T> List<T> generateEntityFromCursor(Class<T> type, TableData data,
-			Cursor cursor) {
+	private <T> List<T> generateEntityFromCursor(Class<T> type,
+			TableData tableData, Cursor cursor) {
 		List<T> result = new ArrayList<T>();
 		while (cursor.moveToNext()) {
-			Map<String, Field> fieldsValue = data.getColumnFields();
+			List<FieldData> fieldsValue = tableData.getColumnFields();
 			try {
 				T object = type.newInstance();
-				for (String columnName : fieldsValue.keySet()) {
+				int size = Utility.size(fieldsValue);
+				for (int i = 0; i < size; i++) {
+					FieldData fieldData = fieldsValue.get(i);
 					String column = cursor.getString(cursor
-							.getColumnIndex(columnName));
-
-					Field field = fieldsValue.get(columnName);
-					setEntityFieldValue(object, field, column);
+							.getColumnIndex(fieldData.column));
+					setEntityFieldValue(object, fieldData.field, column);
 				}
 				result.add(object);
 			} catch (Exception e) {
@@ -411,17 +427,42 @@ public class SQLiteOperator extends SQLiteOpenHelper implements
 			Object object) throws SecurityException, IllegalArgumentException,
 			IllegalAccessException {
 		ContentValues values = new ContentValues();
-		Map<String, Field> fieldColumns = tableData.getColumnFields();
-		for (String columnName : fieldColumns.keySet()) {
-			Field field = fieldColumns.get(columnName);
-			field.setAccessible(true);
-			Object value = field.get(object);
-			if (value == null) {
-				value = "";
-			}
-			values.put(columnName, value.toString());
+
+		List<FieldData> fieldColumns = tableData.getColumnFields();
+		int size = 0;
+		size = Utility.size(fieldColumns);
+		for (int i = 0; i < size; i++) {
+			FieldData fieldData = fieldColumns.get(i);
+			values.put(fieldData.column,
+					getFieldValueText(object, fieldData.field));
 		}
+
+		List<FieldData> foreignColumns = tableData.getForeignFields();
+		size = Utility.size(foreignColumns);
+		for (int i = 0; i < size; i++) {
+			FieldData fieldData = foreignColumns.get(i);
+			values.put(fieldData.column,
+					getFieldValueText(object, fieldData.field));
+		}
+
 		return values;
+	}
+
+	private Object getFieldValue(Object object, Field field)
+			throws IllegalArgumentException, IllegalAccessException {
+		field.setAccessible(true);
+		Object value = field.get(object);
+		return value;
+	}
+
+	private String getFieldValueText(Object object, Field field)
+			throws IllegalArgumentException, IllegalAccessException {
+		field.setAccessible(true);
+		Object value = field.get(object);
+		if (value == null) {
+			value = "";
+		}
+		return value.toString();
 	}
 
 }

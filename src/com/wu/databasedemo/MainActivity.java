@@ -10,6 +10,7 @@ import android.widget.TextView;
 
 import com.wu.databasedemo.db.ISQLiteOpenHelper;
 import com.wu.databasedemo.db.SQLiteOperator;
+import com.wu.databasedemo.entity.Address;
 import com.wu.databasedemo.entity.Person;
 
 public class MainActivity extends Activity {
@@ -38,6 +39,10 @@ public class MainActivity extends Activity {
 				p.setAge(20);
 				p.setName("name" + count);
 				p.setTest("test" + (count));
+				Address address = new Address();
+				address.setProvinceName("province" + count);
+				address.setProvinceCode("code" + count);
+				p.setAddress(address);
 				count++;
 				helper.save(p);
 			}

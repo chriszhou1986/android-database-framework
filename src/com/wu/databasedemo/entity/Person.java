@@ -1,11 +1,16 @@
 package com.wu.databasedemo.entity;
 
+import java.io.Serializable;
+
+import com.wu.databasedemo.db.helper.ForeignKey;
 import com.wu.databasedemo.db.helper.NatrualKey;
 import com.wu.databasedemo.db.helper.NotPersistent;
 import com.wu.databasedemo.db.helper.Table;
 
 @Table(TableName = "person")
-public class Person {
+public class Person implements Serializable {
+
+	private static final long serialVersionUID = -7052906467556730227L;
 
 	@NatrualKey
 	private String name;
@@ -16,6 +21,9 @@ public class Person {
 
 	@NotPersistent
 	private String test;
+
+	@ForeignKey
+	private Address address;
 
 	public Person() {
 		super();
@@ -53,10 +61,18 @@ public class Person {
 		this.test = test;
 	}
 
+	public Address getAddress() {
+		return address;
+	}
+
+	public void setAddress(Address address) {
+		this.address = address;
+	}
+
 	@Override
 	public String toString() {
 		return "Person [name=" + name + ", addr=" + addr + ", age=" + age
-				+ ", test=" + test + "]";
+				+ ", test=" + test + ", address=" + address + "]";
 	}
 
 }

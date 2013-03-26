@@ -1,5 +1,7 @@
 package com.wu.databasedemo.db;
 
+import java.util.Collection;
+
 final class Utility {
 
 	public static byte parseByte(String value) {
@@ -98,6 +100,13 @@ final class Utility {
 			return value.charAt(0);
 		}
 		return ' ';
+	}
+
+	public static int size(Collection<?> coll) {
+		if (coll == null) {
+			return 0;
+		}
+		return coll.size();
 	}
 
 }
