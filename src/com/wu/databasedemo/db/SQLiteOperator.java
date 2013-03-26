@@ -1,11 +1,8 @@
 package com.wu.databasedemo.db;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -17,29 +14,26 @@ import android.database.Cursor;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
-import android.text.style.QuoteSpan;
+import android.text.TextUtils;
 import android.util.Log;
 
-import com.wu.databasedemo.app.MyApplication;
-import com.wu.databasedemo.db.helper.Column;
-import com.wu.databasedemo.db.helper.Column.ColumnClass;
-import com.wu.databasedemo.db.helper.NotPersistent;
-import com.wu.databasedemo.db.helper.Table;
-import com.wu.databasedemo.db.helper.TableData;
+import com.wu.databasedemo.db.data.TableData;
 
-public class SQLiteOperator extends SQLiteOpenHelper implements ISQLiteOpenHelper {
+public class SQLiteOperator extends SQLiteOpenHelper implements
+		ISQLiteOpenHelper {
 
-	private static final int VERSION = 1;
-	
+	private static final String TAG = "db";
+
 	private static SQLiteOperator instance;
 
 	private SQLiteOperator(Context context) {
-		super(context, SQLiteManager.DATABASE_NAME, null, VERSION);
+		super(context, SQLiteManager.DATABASE_NAME, null,
+				SQLiteManager.DATABASE_VERSION);
 	}
-	
-	public static SQLiteOperator getInstance() {
+
+	public static SQLiteOperator getInstance(Context context) {
 		if (instance == null) {
-			instance = new SQLiteOperator(MyApplication.Instance);
+			instance = new SQLiteOperator(context);
 		}
 		return instance;
 	}
@@ -49,7 +43,7 @@ public class SQLiteOperator extends SQLiteOpenHelper implements ISQLiteOpenHelpe
 		SQLiteManager.getInstance();
 		execBuildTablesSQL(db);
 	}
-	
+
 	/**
 	 * Create SQLite tables, execute CREATE TABLE SQL.
 	 * 
@@ -61,28 +55,30 @@ public class SQLiteOperator extends SQLiteOpenHelper implements ISQLiteOpenHelpe
 		boolean result = true;
 		for (int i = 0; i < SQLiteManager.ENTITY_PERSISTENT.length; i++) {
 			Class<?> cl = SQLiteManager.ENTITY_PERSISTENT[i];
-
-			String tableName = SQLiteManager.mEntityDBTables.get(cl).getTableName();
-			Set<String> columns = SQLiteManager.mEntityDBTables.get(cl).getColumnFields().keySet();
+			TableData tableData = SQLiteManager.mEntityDBTables.get(cl);
+			String tableName = tableData.getTableName();
+			Set<String> columns = tableData.getColumnFields().keySet();
 			if (columns == null || columns.size() == 0) {
 				continue;
 			}
-			
+
 			StringBuilder sql = new StringBuilder();
-			sql.append("CREATE TABLE IF NOT EXISTS " + tableName.toUpperCase() + "(");
-			sql.append(Constant.PRIMARY_KEY + " INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT");
+			sql.append("CREATE TABLE IF NOT EXISTS " + tableName.toUpperCase()
+					+ "(");
+			sql.append(SQLiteManager.PRIMARY_KEY
+					+ " INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT");
 
 			Iterator<String> it = columns.iterator();
 			while (it.hasNext()) {
 				sql.append(", " + it.next() + " TEXT");
 			}
 			sql.append(")");
-			android.util.Log.i("test", "build table sql: " + sql);
+			Log.i(TAG, "build table sql: " + sql);
 			try {
 				db.execSQL(sql.toString());
 			} catch (SQLException e) {
 				result = false;
-				android.util.Log.e("test", "build table exception: " + e.toString());
+				Log.e(TAG, "build table exception: " + e.toString());
 			}
 		}
 		return result;
@@ -106,180 +102,326 @@ public class SQLiteOperator extends SQLiteOpenHelper implements ISQLiteOpenHelpe
 
 	@Override
 	public boolean save(Object object) {
-		SQLiteManager.getInstance();
 		if (object == null) {
+			Log.i(TAG, "--> save: save null into database");
 			return false;
 		}
-		String tableName = SQLiteManager.mEntityDBTables.get(object.getClass()).getTableName();
-		SQLiteDatabase db = getWritableDatabase();
-		long row = db.insert(tableName, null, generateContentValues(object));
-		android.util.Log.i("test", "save insert result: " + row);
+		SQLiteManager.getInstance();
+		TableData tableData = SQLiteManager.mEntityDBTables.get(object
+				.getClass());
+		if (tableData == null) {
+			Log.w(TAG, "--> save: no database table for Java Class -- "
+					+ object.getClass());
+			return false;
+		}
+		String tableName = tableData.getTableName();
+
+		try {
+			SQLiteDatabase db = getWritableDatabase();
+			long row = db.insert(tableName, null,
+					generateContentValues(tableData, object));
+			return row == -1 ? false : true;
+		} catch (Exception e) {
+			e.printStackTrace();
+			Log.e(TAG, "save exception: " + e.getMessage());
+		}
 		return false;
 	}
 
 	@Override
 	public <T> boolean saveAll(List<T> objects) {
-		SQLiteManager.getInstance();
 		if (objects == null || objects.size() == 0) {
+			Log.i(TAG, "--> saveAll: save empty list into database");
 			return false;
 		}
+		SQLiteManager.getInstance();
 		boolean result = true;
 		for (int i = 0; i < objects.size(); i++) {
-			if (!save(objects.get(i))) {
+			Object object = objects.get(i);
+			if (!save(object)) {
+				Log.w(TAG, "--> saveAll: save fail, " + object);
 				result = false;
 			}
 		}
 		return result;
 	}
-	
+
 	@Override
 	public <T> boolean deleteById(Class<T> type, String id) {
-		SQLiteManager.getInstance();
-		SQLiteDatabase db = getWritableDatabase();
-		TableData data = SQLiteManager.mEntityDBTables.get(type);
-		String tableName = data.getTableName();
-		String natrualKey = data.getNatrualKey();
-		if (natrualKey == null || natrualKey.length() == 0) {
-			natrualKey = Constant.PRIMARY_KEY;
-		}
-		int row = db.delete(tableName, natrualKey + "=?", new String[]{id});
-		return row != 0 ? true : false;
-	}
-	
-	@Override
-	public <T> boolean deleteAll(Class<T> type) {
-		SQLiteManager.getInstance();
-		SQLiteDatabase db = getWritableDatabase();
-		TableData data = SQLiteManager.mEntityDBTables.get(type);
-		String tableName = data.getTableName();
-		int row = db.delete(tableName, null, null);
-		return row != 0 ? true : false;
-	}
-	
-	@Override
-	public boolean update(Object object, String id) {
-		SQLiteManager.getInstance();
-		if (object == null) {
+		if (TextUtils.isEmpty(id)) {
+			Log.w(TAG, "--> deleteById: empty id to delete");
 			return false;
 		}
-		SQLiteDatabase db = getWritableDatabase();
-		TableData data = SQLiteManager.mEntityDBTables.get(object.getClass());
-		String tableName = data.getTableName();
-		String natrualKey = data.getNatrualKey();
+		SQLiteManager.getInstance();
+		TableData tableData = SQLiteManager.mEntityDBTables.get(type);
+		String tableName = tableData.getTableName();
+		String natrualKey = tableData.getNatrualKey();
 		if (natrualKey == null || natrualKey.length() == 0) {
-			natrualKey = Constant.PRIMARY_KEY;
+			natrualKey = SQLiteManager.PRIMARY_KEY;
 		}
-		int row = db.update(tableName, generateContentValues(object), natrualKey + "=?", new String[]{id});
-		return row != 0 ? true : false;
+
+		try {
+			SQLiteDatabase db = getWritableDatabase();
+			int row = db.delete(tableName, natrualKey + "=?",
+					new String[] { id });
+			return row == 0 ? false : true;
+		} catch (Exception e) {
+			e.printStackTrace();
+			Log.e(TAG, "deleteById exception: " + e.getMessage());
+		}
+		return false;
+	}
+
+	@Override
+	public <T> boolean delete(Class<T> type, String[] whereClause,
+			String[] whereArgs) {
+		SQLiteManager.getInstance();
+		TableData tableData = SQLiteManager.mEntityDBTables.get(type);
+		String tableName = tableData.getTableName();
+
+		String whereCondition = null;
+		if (whereClause != null && whereClause.length > 0) {
+			whereCondition = new String();
+			for (int i = 0; i < whereClause.length; i++) {
+				if (i > 0) {
+					whereCondition += " AND ";
+				}
+				whereCondition += SQLiteManager
+						.getColumnFromField(whereClause[i]) + "=?";
+			}
+		}
+
+		String[] whereValues = null;
+		if (whereArgs != null && whereArgs.length > 0) {
+			whereValues = whereArgs;
+		}
+
+		try {
+			SQLiteDatabase db = getWritableDatabase();
+			int row = db.delete(tableName, whereCondition, whereValues);
+			return row == 0 ? false : true;
+		} catch (Exception e) {
+			e.printStackTrace();
+			Log.e(TAG, "delete exception: " + e.getMessage());
+		}
+		return false;
+	}
+
+	@Override
+	public boolean update(Object object, String id) {
+		if (object == null) {
+			Log.w(TAG, "--> update: update null into database");
+			return false;
+		}
+		if (TextUtils.isEmpty(id)) {
+			Log.w(TAG, "--> update: empty id to update");
+			return false;
+		}
+		SQLiteManager.getInstance();
+		TableData tableData = SQLiteManager.mEntityDBTables.get(object
+				.getClass());
+		String tableName = tableData.getTableName();
+		String natrualKey = tableData.getNatrualKey();
+		if (natrualKey == null || natrualKey.length() == 0) {
+			natrualKey = SQLiteManager.PRIMARY_KEY;
+		}
+
+		try {
+			SQLiteDatabase db = getWritableDatabase();
+			int row = db.update(tableName,
+					generateContentValues(tableData, object),
+					natrualKey + "=?", new String[] { id });
+			return row == 0 ? false : true;
+		} catch (Exception e) {
+			e.printStackTrace();
+			Log.e(TAG, "update exception: " + e.getMessage());
+		}
+		return false;
+	}
+
+	@Override
+	public boolean update(Object object, String[] whereClause,
+			String[] whereArgs) {
+		if (object == null) {
+			Log.w(TAG, "update: update null into database");
+			return false;
+		}
+		SQLiteManager.getInstance();
+		TableData tableData = SQLiteManager.mEntityDBTables.get(object
+				.getClass());
+		String tableName = tableData.getTableName();
+
+		String whereCondition = null;
+		if (whereClause != null && whereClause.length > 0) {
+			whereCondition = new String();
+			for (int i = 0; i < whereClause.length; i++) {
+				if (i > 0) {
+					whereCondition += " AND ";
+				}
+				whereCondition += SQLiteManager
+						.getColumnFromField(whereClause[i]) + "=?";
+			}
+		}
+
+		String[] whereValues = null;
+		if (whereArgs != null && whereArgs.length > 0) {
+			whereValues = whereArgs;
+		}
+
+		try {
+			SQLiteDatabase db = getWritableDatabase();
+			int row = db.update(tableName,
+					generateContentValues(tableData, object), whereCondition,
+					whereValues);
+			return row == 0 ? false : true;
+		} catch (Exception e) {
+			e.printStackTrace();
+			Log.e(TAG, "update exception: " + e.getMessage());
+		}
+		return false;
 	}
 
 	@Override
 	public <T> T queryById(Class<T> type, String id) {
-		SQLiteManager.getInstance();
-		SQLiteDatabase db = getWritableDatabase();
-		TableData data = SQLiteManager.mEntityDBTables.get(type);
-		String tableName = data.getTableName();
-		String natrualKey = data.getNatrualKey();
-		if (natrualKey == null || natrualKey.length() == 0) {
-			natrualKey = Constant.PRIMARY_KEY;
+		if (TextUtils.isEmpty(id)) {
+			Log.w(TAG, "update: empty id to query");
+			return null;
 		}
-		Set<String> columns = data.getColumnFields().keySet();
-		
-		Cursor cursor = db.query(tableName, columns.toArray(new String[] {}),
-				natrualKey + "=?", new String[] { id }, null, null, null);
-		List<T> objects = generateEntityFromCursor(type, data, cursor);
-		if (objects != null && objects.size() > 0) {
-			return objects.get(0);
+		SQLiteManager.getInstance();
+		TableData tableData = SQLiteManager.mEntityDBTables.get(type);
+		Set<String> columns = tableData.getColumnFields().keySet();
+		String tableName = tableData.getTableName();
+		String natrualKey = tableData.getNatrualKey();
+		if (TextUtils.isEmpty(natrualKey)) {
+			natrualKey = SQLiteManager.PRIMARY_KEY;
+		}
+
+		Cursor cursor = null;
+		try {
+			SQLiteDatabase db = getWritableDatabase();
+			cursor = db.query(tableName, columns.toArray(new String[] {}),
+					natrualKey + "=?", new String[] { id }, null, null, null);
+			List<T> objects = generateEntityFromCursor(type, tableData, cursor);
+			if (objects != null && objects.size() > 0) {
+				return objects.get(0);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			Log.e(TAG, "queryById exception: " + e.getMessage());
+		} finally {
+			if (cursor != null) {
+				cursor.close();
+			}
 		}
 		return null;
 	}
 
 	@Override
-	public <T> List<T> queryAll(Class<T> type) {
+	public <T> List<T> query(Class<T> type, String[] selection,
+			String[] selectionArgs) {
 		SQLiteManager.getInstance();
-		SQLiteDatabase db = getWritableDatabase();
-		TableData data = SQLiteManager.mEntityDBTables.get(type);
-		String tableName = data.getTableName();
-		Set<String> columns = data.getColumnFields().keySet();
-		
-		Cursor cursor = db.query(tableName, columns.toArray(new String[] {}), null, null, null, null, null);
-		return generateEntityFromCursor(type, data, cursor);
+		TableData tableData = SQLiteManager.mEntityDBTables.get(type);
+		Set<String> columns = tableData.getColumnFields().keySet();
+		String tableName = tableData.getTableName();
+
+		String selCondition = null;
+		if (selection != null && selection.length > 0) {
+			selCondition = new String();
+			for (int i = 0; i < selection.length; i++) {
+				if (i > 0) {
+					selCondition += " AND ";
+				}
+				selCondition += SQLiteManager.getColumnFromField(selection[i])
+						+ "=?";
+			}
+		}
+
+		String[] selValues = null;
+		if (selectionArgs != null && selectionArgs.length > 0) {
+			selValues = selectionArgs;
+		}
+
+		Cursor cursor = null;
+		try {
+			SQLiteDatabase db = getWritableDatabase();
+			cursor = db.query(tableName, columns.toArray(new String[] {}),
+					selCondition, selValues, null, null, null);
+			return generateEntityFromCursor(type, tableData, cursor);
+		} catch (Exception e) {
+			e.printStackTrace();
+			Log.e(TAG, "query exception: " + e.getMessage());
+		} finally {
+			if (cursor != null) {
+				cursor.close();
+			}
+		}
+		return new ArrayList<T>();
 	}
 
-	private <T> List<T> generateEntityFromCursor(Class<T> type, TableData data, Cursor cursor) {
+	private <T> List<T> generateEntityFromCursor(Class<T> type, TableData data,
+			Cursor cursor) {
 		List<T> result = new ArrayList<T>();
 		while (cursor.moveToNext()) {
 			Map<String, Field> fieldsValue = data.getColumnFields();
 			try {
 				T object = type.newInstance();
 				for (String columnName : fieldsValue.keySet()) {
-					String column = cursor.getString(cursor.getColumnIndex(columnName));
-				
+					String column = cursor.getString(cursor
+							.getColumnIndex(columnName));
+
 					Field field = fieldsValue.get(columnName);
-					boolean hasColumnAnno = field.isAnnotationPresent(Column.class);
-					ColumnClass classType;
-					if (hasColumnAnno) {
-						classType = field.getAnnotation(Column.class).classType();
-					} else {
-						classType = ColumnClass.STRING;
-					}
-					setEntityFieldValue(object, field, classType, column);
+					setEntityFieldValue(object, field, column);
 				}
 				result.add(object);
 			} catch (Exception e) {
-				android.util.Log.e("test", "generateEntityFromCursor exception: " + e.toString());
+				Log.e(TAG,
+						"generateEntityFromCursor exception: " + e.toString());
 				continue;
 			}
 		}
-		return result;
+		return result.size() != 0 ? result : null;
 	}
 
-	private void setEntityFieldValue(Object object, Field field, ColumnClass classType, String column) throws IllegalArgumentException, IllegalAccessException {
+	private void setEntityFieldValue(Object object, Field field, String column)
+			throws NullPointerException, SecurityException,
+			IllegalArgumentException, IllegalAccessException {
 		field.setAccessible(true);
-		if (classType == ColumnClass.STRING) {
+		if (field.getType() == boolean.class) {
+			field.setBoolean(object, Utility.text2Boolean(column));
+		} else if (field.getType() == double.class) {
+			field.setDouble(object, Utility.parseDouble(column));
+		} else if (field.getType() == float.class) {
+			field.setFloat(object, Utility.parseFloat(column));
+		} else if (field.getType() == int.class) {
+			field.setInt(object, Utility.parseInt(column));
+		} else if (field.getType() == long.class) {
+			field.setLong(object, Utility.parseLong(column));
+		} else if (field.getType() == short.class) {
+			field.setShort(object, Utility.parseShort(column));
+		} else if (field.getType() == byte.class) {
+			field.setByte(object, Utility.parseByte(column));
+		} else if (field.getType() == char.class) {
+			field.setChar(object, Utility.parseChar(column));
+		} else {
 			field.set(object, column);
-		} else if (classType == ColumnClass.BOOLEAN) {
-			field.setBoolean(object, Util.text2Boolean(column));
-		} else if (classType == ColumnClass.DOUBLE) {
-			field.setDouble(object, Util.parseDouble(column));
-		} else if (classType == ColumnClass.FLOAT) {
-			field.setFloat(object, Util.parseFloat(column));
-		} else if (classType == ColumnClass.INTEGER) {
-			field.setInt(object, Util.parseInt(column));
-		} else if (classType == ColumnClass.LONG) {
-			field.setLong(object, Util.parseLong(column));
 		}
 	}
 
-	private ContentValues generateContentValues(Object object) {
+	private ContentValues generateContentValues(TableData tableData,
+			Object object) throws SecurityException, IllegalArgumentException,
+			IllegalAccessException {
 		ContentValues values = new ContentValues();
-		TableData data = SQLiteManager.mEntityDBTables.get(object.getClass());
-		Map<String, Field> fieldColumns = data.getColumnFields();
+		Map<String, Field> fieldColumns = tableData.getColumnFields();
 		for (String columnName : fieldColumns.keySet()) {
-			try {
-				Field field = fieldColumns.get(columnName);
-				field.setAccessible(true);
-				Object value = field.get(object);
-				if (value == null) {
-					value = "";
-				}
-				values.put(columnName, value.toString());
-			} catch (Exception e) {
-				e.printStackTrace();
+			Field field = fieldColumns.get(columnName);
+			field.setAccessible(true);
+			Object value = field.get(object);
+			if (value == null) {
+				value = "";
 			}
+			values.put(columnName, value.toString());
 		}
 		return values;
-	}
-
-	public String toFirstLetterUpperCase(String str) {
-		if (str == null || str.length() == 0) {
-			return "";
-		}
-		if (str.length() == 1) {
-			return str.toUpperCase();
-		}
-		String firstLetter = str.substring(0, 1).toUpperCase();
-		return firstLetter + str.substring(1, str.length());
 	}
 
 }

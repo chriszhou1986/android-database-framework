@@ -1,10 +1,8 @@
 package com.wu.databasedemo.entity;
 
-import com.wu.databasedemo.db.helper.Column;
 import com.wu.databasedemo.db.helper.NatrualKey;
 import com.wu.databasedemo.db.helper.NotPersistent;
 import com.wu.databasedemo.db.helper.Table;
-import com.wu.databasedemo.db.helper.Column.ColumnClass;
 
 @Table(TableName = "person")
 public class Person {
@@ -14,7 +12,6 @@ public class Person {
 
 	private String addr;
 
-	@Column(classType = ColumnClass.INTEGER)
 	private int age;
 
 	@NotPersistent

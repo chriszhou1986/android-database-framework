@@ -19,14 +19,14 @@ public class MainActivity extends Activity {
 	private Button btn2;
 
 	private static int count = 1;
-	
+
 	private ISQLiteOpenHelper helper;
 
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
-		helper = SQLiteOperator.getInstance();
+		helper = SQLiteOperator.getInstance(this);
 		txt = (TextView) findViewById(R.id.txt);
 		btn1 = (Button) findViewById(R.id.btn1);
 		btn1.setOnClickListener(new View.OnClickListener() {
@@ -47,12 +47,14 @@ public class MainActivity extends Activity {
 
 			@Override
 			public void onClick(View v) {
-				List<Person> p = helper.queryAll(Person.class);
+				List<Person> p = helper.query(Person.class, null, null);
 				StringBuilder sb = new StringBuilder();
-				for (int i = 0; i < p.size(); i++) {
-					sb.append(p.get(i));
+				if (p != null) {
+					for (int i = 0; i < p.size(); i++) {
+						sb.append(p.get(i));
+					}
 				}
-				txt.setText(p.toString());
+				txt.setText(sb.toString());
 			}
 		});
 		Button btn3 = (Button) findViewById(R.id.btn3);
@@ -60,7 +62,7 @@ public class MainActivity extends Activity {
 
 			@Override
 			public void onClick(View v) {
-				helper.deleteAll(Person.class);
+				helper.delete(Person.class, null, null);
 			}
 		});
 		Button btn4 = (Button) findViewById(R.id.btn4);

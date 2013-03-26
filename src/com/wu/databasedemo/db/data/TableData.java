@@ -1,8 +1,14 @@
-package com.wu.databasedemo.db.helper;
+package com.wu.databasedemo.db.data;
 
 import java.lang.reflect.Field;
 import java.util.Map;
 
+/**
+ * Define table's parameters.
+ * 
+ * @author Administrator
+ * 
+ */
 public class TableData {
 
 	private String tableName;
