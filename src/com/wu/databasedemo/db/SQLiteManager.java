@@ -10,6 +10,7 @@ import com.wu.databasedemo.db.data.FieldData;
 import com.wu.databasedemo.db.data.TableData;
 import com.wu.databasedemo.db.exception.NaturalKeyRepetitiveException;
 import com.wu.databasedemo.db.exception.NoNaturalKeyException;
+import com.wu.databasedemo.db.exception.TableNameInvalidException;
 import com.wu.databasedemo.db.helper.ForeignKey;
 import com.wu.databasedemo.db.helper.NatrualKey;
 import com.wu.databasedemo.db.helper.NotPersistent;
@@ -19,19 +20,22 @@ import com.wu.databasedemo.entity.Person;
 
 public class SQLiteManager {
 
-	public static final int DATABASE_VERSION = 4;
+	public static final int DATABASE_VERSION = 11;
 
 	public static final String DATABASE_NAME = "test.db";
 
 	public static final String PRIMARY_KEY = "_ID";
+
+	private static final String FOREIGN_COLUMN_SUFFIX = "_FK";
+
+	static final Class<?>[] ENTITY_PERSISTENT = new Class<?>[] { Person.class,
+			Address.class };
 	
 	private static final String SERIAL_VERSION_UID = "serialVersionUID";
 
-	public static SQLiteManager mManager;
-
 	static Map<Class<?>, TableData> mEntityDBTables;
-
-	static final Class<?>[] ENTITY_PERSISTENT = new Class<?>[] { Person.class, Address.class };
+	
+	private static SQLiteManager mManager;
 
 	private SQLiteManager() {
 		super();
@@ -58,54 +62,54 @@ public class SQLiteManager {
 			if (isTable && fields.length > 0) {
 				Table table = cl.getAnnotation(Table.class);
 				String tableName = table.TableName();
-				// TODO if tableName is empty throws exceptions
-				if (tableName != null && tableName.length() > 0) {
-					TableData data = new TableData();
-					FieldData naturalKey = null;
-					boolean foundNaturalKey = false;
-					for (int j = 0; j < fields.length; j++) {
-						Field field = fields[j];
-						if (isSerialVersion(field)) {
-							continue;
-						}
-						boolean isNotPersistent = field
-								.isAnnotationPresent(NotPersistent.class);
-						boolean isForeignKey = field
-								.isAnnotationPresent(ForeignKey.class);
-						boolean notPersistent = isNotPersistent || isForeignKey;
-
-						// process foreign-key attributes
-						if (isForeignKey) {
-							data.addForeignField(getForeignFromField(field),
-									field);
-						}
-
-						// process persistent attributes
-						if (!notPersistent) {
-							boolean isNatrualKey = field
-									.isAnnotationPresent(NatrualKey.class);
-							if (isNatrualKey) {
-								if (foundNaturalKey) {
-									throw new NaturalKeyRepetitiveException(
-											"The persistent Class should be just have one natural-key.");
-								}
-								foundNaturalKey = true;
-								naturalKey = new FieldData();
-								naturalKey.column = getColumnFromField(field);
-								naturalKey.field = field;
-							}
-							data.addColumnField(getColumnFromField(field),
-									field);
-						}
-					}
-					if (naturalKey == null) {
-						throw new NoNaturalKeyException(
-								"The persistent Class must have one natural-key.");
-					}
-					data.setNaturalKey(naturalKey);
-					data.setTableName(tableName);
-					mEntityDBTables.put(cl, data);
+				if (tableName == null || tableName.length() == 0) {
+					throw new TableNameInvalidException(
+							"The tableName can not be empty.");
 				}
+
+				TableData data = new TableData();
+				FieldData naturalKey = null;
+				boolean foundNaturalKey = false;
+				for (int j = 0; j < fields.length; j++) {
+					Field field = fields[j];
+					if (isSerialVersion(field)) {
+						continue;
+					}
+					boolean isNotPersistent = field
+							.isAnnotationPresent(NotPersistent.class);
+					boolean isForeignKey = field
+							.isAnnotationPresent(ForeignKey.class);
+					boolean isNormalColumn = !isNotPersistent && !isForeignKey;
+
+					// process foreign-key attributes
+					if (isForeignKey) {
+						data.addForeignColumn(getForeignFromField(field), field);
+					}
+
+					// process normal persistent attributes
+					if (isNormalColumn) {
+						boolean isNatrualKey = field
+								.isAnnotationPresent(NatrualKey.class);
+						if (isNatrualKey) {
+							if (foundNaturalKey) {
+								throw new NaturalKeyRepetitiveException(
+										"The persistent Class must be just have one natural-key.");
+							}
+							foundNaturalKey = true;
+							naturalKey = new FieldData();
+							naturalKey.column = getColumnFromField(field);
+							naturalKey.field = field;
+						}
+						data.addNormalColumn(getColumnFromField(field), field);
+					}
+				}
+				if (naturalKey == null) {
+					throw new NoNaturalKeyException(
+							"The persistent Class must be have one natural-key.");
+				}
+				data.setNaturalKey(naturalKey);
+				data.setTableName(tableName);
+				mEntityDBTables.put(cl, data);
 			}
 		}
 	}
@@ -140,7 +144,7 @@ public class SQLiteManager {
 
 	public static String getForeignFromField(Field field) {
 		if (field != null) {
-			return field.getName().toUpperCase() + "_FK";
+			return field.getName().toUpperCase() + FOREIGN_COLUMN_SUFFIX;
 		}
 		return "";
 	}

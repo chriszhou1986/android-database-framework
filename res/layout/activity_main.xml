@@ -28,18 +28,6 @@
             android:text="query" />
 
         <Button
-            android:id="@+id/btn5"
-            android:layout_width="fill_parent"
-            android:layout_height="wrap_content"
-            android:text="query person 2" />
-
-        <Button
-            android:id="@+id/btn6"
-            android:layout_width="fill_parent"
-            android:layout_height="wrap_content"
-            android:text="delete person 1" />
-
-        <Button
             android:id="@+id/btn3"
             android:layout_width="fill_parent"
             android:layout_height="wrap_content"
@@ -50,6 +38,18 @@
             android:layout_width="fill_parent"
             android:layout_height="wrap_content"
             android:text="update person 3" />
+
+        <Button
+            android:id="@+id/btn5"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:text="query person 2" />
+
+        <Button
+            android:id="@+id/btn6"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:text="delete person 1" />
     </LinearLayout>
 
 </ScrollView>

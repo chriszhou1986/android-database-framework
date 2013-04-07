@@ -1,5 +1,7 @@
 package com.wu.databasedemo.db;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Collection;
 
 final class Utility {
@@ -107,6 +109,16 @@ final class Utility {
 			return 0;
 		}
 		return coll.size();
+	}
+
+	public static void close(Closeable closeable) {
+		try {
+			if (closeable != null) {
+				closeable.close();
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 }

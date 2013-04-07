@@ -16,8 +16,6 @@ import com.wu.databasedemo.entity.Person;
 public class MainActivity extends Activity {
 
 	private TextView txt;
-	private Button btn1;
-	private Button btn2;
 
 	private static int count = 1;
 
@@ -29,8 +27,8 @@ public class MainActivity extends Activity {
 		setContentView(R.layout.activity_main);
 		helper = SQLiteOperator.getInstance(this);
 		txt = (TextView) findViewById(R.id.txt);
-		btn1 = (Button) findViewById(R.id.btn1);
-		btn1.setOnClickListener(new View.OnClickListener() {
+		
+		findViewById(R.id.btn1).setOnClickListener(new View.OnClickListener() {
 
 			@Override
 			public void onClick(View v) {
@@ -47,8 +45,8 @@ public class MainActivity extends Activity {
 				helper.save(p);
 			}
 		});
-		btn2 = (Button) findViewById(R.id.btn2);
-		btn2.setOnClickListener(new View.OnClickListener() {
+		
+		findViewById(R.id.btn2).setOnClickListener(new View.OnClickListener() {
 
 			@Override
 			public void onClick(View v) {
@@ -57,31 +55,33 @@ public class MainActivity extends Activity {
 				if (p != null) {
 					for (int i = 0; i < p.size(); i++) {
 						sb.append(p.get(i));
+						sb.append("\n");
 					}
 				}
 				txt.setText(sb.toString());
 			}
 		});
-		Button btn3 = (Button) findViewById(R.id.btn3);
-		btn3.setOnClickListener(new View.OnClickListener() {
+		
+		findViewById(R.id.btn3).setOnClickListener(new View.OnClickListener() {
 
 			@Override
 			public void onClick(View v) {
 				helper.delete(Person.class, null, null);
 			}
 		});
-		Button btn4 = (Button) findViewById(R.id.btn4);
-		btn4.setOnClickListener(new View.OnClickListener() {
+		
+		findViewById(R.id.btn4).setOnClickListener(new View.OnClickListener() {
 
 			@Override
 			public void onClick(View v) {
 				Person p = new Person();
+				p.setName("name3");
 				p.setAddr("addr - update");
-				helper.update(p, "name3");
+				helper.updateById(p);
 			}
 		});
-		Button btn5 = (Button) findViewById(R.id.btn5);
-		btn5.setOnClickListener(new View.OnClickListener() {
+		
+		findViewById(R.id.btn5).setOnClickListener(new View.OnClickListener() {
 
 			@Override
 			public void onClick(View v) {
@@ -91,8 +91,8 @@ public class MainActivity extends Activity {
 				}
 			}
 		});
-		Button btn6 = (Button) findViewById(R.id.btn6);
-		btn6.setOnClickListener(new View.OnClickListener() {
+		
+		findViewById(R.id.btn6).setOnClickListener(new View.OnClickListener() {
 
 			@Override
 			public void onClick(View v) {

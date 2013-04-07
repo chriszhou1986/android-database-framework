@@ -16,14 +16,17 @@ public class TableData {
 
 	private FieldData naturalKey;
 
-	private List<FieldData> foreignFields;
+	private List<FieldData> foreignColumns;
 
-	private List<FieldData> columnFields;
+	/**
+	 * The persistent column that is not foreign-key.
+	 */
+	private List<FieldData> normalColumns;
 
 	public TableData() {
 		super();
-		this.foreignFields = new ArrayList<FieldData>();
-		this.columnFields = new ArrayList<FieldData>();
+		this.foreignColumns = new ArrayList<FieldData>();
+		this.normalColumns = new ArrayList<FieldData>();
 	}
 
 	public String getTableName() {
@@ -42,53 +45,53 @@ public class TableData {
 		this.naturalKey = naturalKey;
 	}
 
-	public List<FieldData> getForeignFields() {
-		return foreignFields;
+	public List<FieldData> getForeignColumns() {
+		return foreignColumns;
 	}
 
-	public void setForeignFields(List<FieldData> foreignFields) {
-		if (foreignFields == null) {
-			this.foreignFields = new ArrayList<FieldData>();
+	public void setForeignColumns(List<FieldData> foreignColumns) {
+		if (foreignColumns == null) {
+			this.foreignColumns = new ArrayList<FieldData>();
 		} else {
-			this.foreignFields = foreignFields;
+			this.foreignColumns = foreignColumns;
 		}
 	}
 
-	public List<FieldData> getColumnFields() {
-		return columnFields;
+	public List<FieldData> getNormalColumns() {
+		return normalColumns;
 	}
 
-	public void setColumnFields(List<FieldData> columnFields) {
-		if (columnFields == null) {
-			this.columnFields = new ArrayList<FieldData>();
+	public void setNormalColumns(List<FieldData> normalColumns) {
+		if (normalColumns == null) {
+			this.normalColumns = new ArrayList<FieldData>();
 		} else {
-			this.columnFields = columnFields;
+			this.normalColumns = normalColumns;
 		}
 	}
 
-	public void addForeignField(String column, Field field) {
+	public void addForeignColumn(String column, Field field) {
 		if (column != null && field != null) {
 			FieldData fieldData = new FieldData();
 			fieldData.column = column;
 			fieldData.field = field;
-			this.foreignFields.add(fieldData);
+			this.foreignColumns.add(fieldData);
 		}
 	}
 
-	public void addColumnField(String column, Field field) {
+	public void addNormalColumn(String column, Field field) {
 		if (column != null && field != null) {
 			FieldData fieldData = new FieldData();
 			fieldData.column = column;
 			fieldData.field = field;
-			this.columnFields.add(fieldData);
+			this.normalColumns.add(fieldData);
 		}
 	}
 
 	@Override
 	public String toString() {
 		return "TableData [tableName=" + tableName + ", naturalKey="
-				+ naturalKey + ", foreignFields=" + foreignFields
-				+ ", columnFields=" + columnFields + "]";
+				+ naturalKey + ", foreignColumns=" + foreignColumns
+				+ ", normalColumns=" + normalColumns + "]";
 	}
 
 }
